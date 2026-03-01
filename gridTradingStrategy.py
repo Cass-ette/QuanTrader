@@ -11,6 +11,7 @@ import logging
 import sys
 from decimal import Decimal, getcontext
 import os
+from config import DEFAULT_SYMBOL
 
 # 配置日志
 logging.basicConfig(
@@ -32,7 +33,7 @@ class GridTradingStrategy:
         self.api_secret = api_secret
         self.testnet = testnet
         self.exchange = self._init_exchange()
-        self.symbol = 'ETHUSDT'  # 默认交易对，可以在初始化后修改
+        self.symbol = DEFAULT_SYMBOL
         self.timeframe = '1h'  # 1小时K线
         
         # 网格策略参数
@@ -513,8 +514,8 @@ class GridTradingStrategy:
 
 if __name__ == "__main__":
     # 解析命令行参数（从Web界面传递）
-    symbol = 'ETHUSDT'  # 默认交易对
-    testnet = False  # 默认使用实盘
+    symbol = DEFAULT_SYMBOL
+    testnet = False
     grid_levels = 10  # 默认网格档位数量
     grid_range_pct = 0.08  # 默认网格区间百分比
     
@@ -534,11 +535,11 @@ if __name__ == "__main__":
         except ValueError:
             logger.warning(f"无效的网格区间百分比: {sys.argv[4]}，使用默认值{grid_range_pct*100}%")
     
-    # Binance API配置 - 使用环境变量或默认值
-    API_KEY = os.environ.get('BINANCE_API_KEY', 'D3gzp96Lv20e1KCx2WZRPT5xOsavT9jTtATfeVRe6kotuajCdoQjb0lohRoHcBa6')
-    API_SECRET = os.environ.get('BINANCE_SECRET_KEY', 'dV1tDLMczFlopnF9ZFXKBJ0oJt9JogJlxnMmeo7TGUhxRwgm5jxdReoUfMJF55XQ')
-    
-    print(f"启动ETH/USDT网格交易策略 - 交易对: {symbol}, 测试网络: {'是' if testnet else '否'}")
+    from config import BINANCE_API_KEY, BINANCE_SECRET_KEY
+    API_KEY = BINANCE_API_KEY
+    API_SECRET = BINANCE_SECRET_KEY
+
+    print(f"启动网格交易策略 - 交易对: {symbol}, 测试网络: {'是' if testnet else '否'}")
     print(f"网格参数 - 档位数量: {grid_levels}, 区间百分比: {grid_range_pct*100:.2f}%")
     
     strategy = GridTradingStrategy(
@@ -557,5 +558,5 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"策略执行异常: {str(e)}")
         # 尝试平掉所有仓位
-        if strategy.current_position is not None:
+        if strategy.holdings:
             strategy.close_all_positions()

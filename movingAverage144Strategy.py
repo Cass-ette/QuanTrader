@@ -11,6 +11,7 @@ import logging
 import sys
 from decimal import Decimal, getcontext
 import os
+from config import BINANCE_API_KEY, BINANCE_SECRET_KEY, DEFAULT_SYMBOL
 
 # 配置日志
 logging.basicConfig(
@@ -28,12 +29,11 @@ getcontext().prec = 8
 
 class MovingAverage144Strategy:
     def __init__(self, api_key=None, api_secret=None, testnet=False):
-        # 优先使用传入的API密钥，如果没有则从环境变量读取
-        self.api_key = api_key or os.environ.get('BINANCE_API_KEY', 'D3gzp96Lv20e1KCx2WZRPT5xOsavT9jTtATfeVRe6kotuajCdoQjb0lohRoHcBa6')
-        self.api_secret = api_secret or os.environ.get('BINANCE_SECRET_KEY', 'dV1tDLMczFlopnF9ZFXKBJ0oJt9JogJlxnMmeo7TGUhxRwgm5jxdReoUfMJF55XQ')
+        self.api_key = api_key or BINANCE_API_KEY
+        self.api_secret = api_secret or BINANCE_SECRET_KEY
         self.testnet = testnet
         self.exchange = self._init_exchange()
-        self.symbol = 'ETHUSDT'  # 默认交易对，可以在初始化后修改
+        self.symbol = DEFAULT_SYMBOL
         self.timeframe = '5m'  # 五分钟K线
         
         # 策略参数
@@ -647,7 +647,7 @@ class MovingAverage144Strategy:
 
 if __name__ == "__main__":
     # 解析命令行参数（从Web界面传递）
-    symbol = 'ETHUSDT'  # 默认交易对
+    symbol = DEFAULT_SYMBOL
     testnet = False  # 默认使用实盘
     api_key = None
     api_secret = None

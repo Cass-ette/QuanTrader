@@ -10,6 +10,8 @@ import requests
 import logging
 import sys
 from decimal import Decimal, getcontext
+import os
+from config import BINANCE_API_KEY, BINANCE_SECRET_KEY, DEFAULT_SYMBOL
 
 # 配置日志
 logging.basicConfig(
@@ -31,7 +33,7 @@ class VolumePriceStrategy:
         self.api_secret = api_secret
         self.testnet = testnet
         self.exchange = self._init_exchange()
-        self.symbol = 'ETHUSDT'  # 默认交易对，可以在初始化后修改
+        self.symbol = DEFAULT_SYMBOL
         self.timeframe = '1h'  # 1小时K线
         
         # 策略参数
@@ -504,7 +506,7 @@ class VolumePriceStrategy:
 
 if __name__ == "__main__":
     # 解析命令行参数（从Web界面传递）
-    symbol = 'ETHUSDT'  # 默认交易对
+    symbol = DEFAULT_SYMBOL
     testnet = False  # 默认使用实盘
     
     # 从命令行参数获取配置
@@ -513,10 +515,8 @@ if __name__ == "__main__":
     if len(sys.argv) > 2:
         testnet = sys.argv[2].lower() == 'true' or sys.argv[2].lower() == '1'
     
-    # Binance API配置 - 使用环境变量或默认值
-    import os
-    API_KEY = os.environ.get('BINANCE_API_KEY', 'D3gzp96Lv20e1KCx2WZRPT5xOsavT9jTtATfeVRe6kotuajCdoQjb0lohRoHcBa6')
-    API_SECRET = os.environ.get('BINANCE_SECRET_KEY', 'dV1tDLMczFlopnF9ZFXKBJ0oJt9JogJlxnMmeo7TGUhxRwgm5jxdReoUfMJF55XQ')
+    API_KEY = BINANCE_API_KEY
+    API_SECRET = BINANCE_SECRET_KEY
     
     print(f"启动策略 - 交易对: {symbol}, 测试网络: {'是' if testnet else '否'}")
     

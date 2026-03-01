@@ -1,16 +1,13 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, render_template
 import subprocess
-import json
 import os
 import time
 from datetime import datetime
 
 app = Flask(__name__)
 
-# 获取当前目录
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# 允许的脚本列表
 ALLOWED_SCRIPTS = {
     'check_positions': 'checkPositions.py',
     'check_balance': 'check_futures_balance.py',
@@ -28,7 +25,6 @@ ALLOWED_SCRIPTS = {
     'moving_average_144': {'file': 'movingAverage144Strategy.py', 'api_params': True}
 }
 
-# 脚本描述信息
 SCRIPT_DESCRIPTIONS = {
     'check_positions': '查询当前持仓信息',
     'check_balance': '查询账户资金信息',
@@ -46,7 +42,6 @@ SCRIPT_DESCRIPTIONS = {
     'moving_average_144': '运行5分钟周期144日均线策略'
 }
 
-# 脚本参数配置
 SCRIPT_PARAMS = {
     'market_long': [
         {'name': 'symbol', 'type': 'text', 'label': '交易对', 'default': 'BTCUSDT'},
@@ -89,53 +84,49 @@ SCRIPT_PARAMS = {
         {'name': 'risk_percent', 'type': 'number', 'label': '风险比例(%)', 'default': 2}
     ],
     'volume_price_strategy': [
-        {'name': 'symbol', 'type': 'text', 'label': '交易对', 'default': 'ETHUSDT'},
+        {'name': 'symbol', 'type': 'text', 'label': '交易对', 'default': 'BTCUSDT'},
         {'name': 'testnet', 'type': 'checkbox', 'label': '使用测试网络', 'default': False}
     ],
     'grid_trading': [
-        {'name': 'symbol', 'type': 'text', 'label': '交易对', 'default': 'ETHUSDT'},
+        {'name': 'symbol', 'type': 'text', 'label': '交易对', 'default': 'BTCUSDT'},
         {'name': 'levels', 'type': 'number', 'label': '网格档位数量', 'default': 10},
         {'name': 'range', 'type': 'number', 'label': '网格区间百分比(%)', 'default': 8},
         {'name': 'testnet', 'type': 'checkbox', 'label': '使用测试网络', 'default': False}
     ]
 }
 
+
 @app.route('/')
 def index():
-    # 直接返回静态HTML文件的内容
-    html_path = os.path.join(BASE_DIR, 'static', 'index.html')
-    with open(html_path, 'r', encoding='utf-8') as f:
-        return f.read()
+    return render_template('index.html')
+
 
 @app.route('/static/<path:filename>')
 def serve_static(filename):
     return send_from_directory(os.path.join(BASE_DIR, 'static'), filename)
 
+
 @app.route('/run_script', methods=['POST'])
 def run_script():
     script_key = request.json.get('script')
     params = request.json.get('params', {})
-    
+
     if script_key not in ALLOWED_SCRIPTS:
         return jsonify({'status': 'error', 'message': f'不支持的脚本: {script_key}'})
-    
-    # 处理脚本路径，考虑可能是字典格式（对于需要API参数的脚本）
+
     script_config = ALLOWED_SCRIPTS[script_key]
     if isinstance(script_config, dict):
         script_path = os.path.join(BASE_DIR, script_config['file'])
     else:
         script_path = os.path.join(BASE_DIR, script_config)
-    
+
     if not os.path.exists(script_path):
         return jsonify({'status': 'error', 'message': f'脚本文件不存在: {script_path}'})
-    
+
     try:
-        # 构建命令
         cmd = ['python', script_path]
-        
-        # 根据不同脚本添加参数
+
         if script_key in ['market_long', 'market_short']:
-            # 开多开空需要交易对、数量、杠杆参数
             if 'symbol' in params:
                 cmd.append(params['symbol'])
             if 'quantity' in params:
@@ -143,11 +134,9 @@ def run_script():
             if 'leverage' in params:
                 cmd.append(str(params['leverage']))
         elif script_key in ['close_long', 'close_short']:
-            # 平仓需要交易对参数
             if 'symbol' in params:
                 cmd.append(params['symbol'])
         elif script_key in ['get_rsi', 'get_macd', 'get_moving_average', 'get_bollinger_bands']:
-            # 技术指标需要交易对和时间周期参数
             if 'symbol' in params:
                 cmd.append(params['symbol'])
             if 'interval' in params:
@@ -160,45 +149,32 @@ def run_script():
                 if 'std_dev' in params:
                     cmd.append(str(params['std_dev']))
         elif script_key == 'trend_strategy':
-            # 策略需要交易对、时间周期和风险比例参数
             if 'symbol' in params:
                 cmd.append(params['symbol'])
             if 'interval' in params:
                 cmd.append(params['interval'])
             if 'risk_percent' in params:
                 cmd.append(str(params['risk_percent']))
-        elif script_key == 'volume_price_strategy':
-            # 量价共振策略参数
-            # 注意：API密钥和测试网络设置需要在脚本内部配置
-            pass
         elif script_key == 'grid_trading':
-            # 网格交易策略参数
             if 'symbol' in params:
                 cmd.append(params['symbol'])
             if 'levels' in params:
                 cmd.append(str(params['levels']))
             if 'range' in params:
                 cmd.append(str(params['range']))
-            # 测试网络参数会在脚本内部处理
-            pass
         elif script_key == 'moving_average_144':
-            # 144日均线策略参数
             if 'symbol' in params:
                 cmd.append(params['symbol'])
-            # 测试网络参数会在脚本内部处理
-            pass
-        
-        # 执行脚本
+
         start_time = time.time()
-        
-        # 对于需要API参数的脚本，在环境变量中传递
+
         env = os.environ.copy()
         if isinstance(ALLOWED_SCRIPTS.get(script_key), dict) and ALLOWED_SCRIPTS[script_key].get('api_params'):
             if 'api_key' in params:
                 env['API_KEY'] = params['api_key']
             if 'api_secret' in params:
                 env['API_SECRET'] = params['api_secret']
-        
+
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
@@ -207,19 +183,15 @@ def run_script():
             cwd=BASE_DIR,
             env=env
         )
-        
-        # 实时获取输出
+
         output = []
         for line in iter(process.stdout.readline, ''):
             output.append(line.strip())
-            # 每读取一行就返回给前端（通过SSE或WebSocket会更好，但这里简化处理）
             time.sleep(0.1)
-        
-        # 等待进程完成
+
         process.wait()
         end_time = time.time()
-        
-        # 检查是否有错误
+
         stderr = process.stderr.read()
         if stderr:
             return jsonify({
@@ -229,42 +201,40 @@ def run_script():
                 'error': stderr,
                 'execution_time': f"{end_time - start_time:.2f}秒"
             })
-        
-        # 记录执行信息（不包含API密钥）
-            log_params = {k: v for k, v in params.items() if k not in ['api_key', 'api_secret']}
-            print(f"脚本 {script_key} 执行成功，参数: {log_params}")
-            
-            return jsonify({
-                'status': 'success',
-                'message': '脚本执行成功',
-                'output': '\n'.join(output),
-                'execution_time': f"{end_time - start_time:.2f}秒"
-            })
-        
+
+        # BUG FIX: 原代码此处缩进错误，导致成功返回路径被嵌套在 if stderr 内部
+        log_params = {k: v for k, v in params.items() if k not in ['api_key', 'api_secret']}
+        print(f"脚本 {script_key} 执行成功，参数: {log_params}")
+
+        return jsonify({
+            'status': 'success',
+            'message': '脚本执行成功',
+            'output': '\n'.join(output),
+            'execution_time': f"{end_time - start_time:.2f}秒"
+        })
+
     except Exception as e:
         return jsonify({
             'status': 'error',
             'message': f'执行脚本时发生异常: {str(e)}'
         })
 
+
 @app.route('/get_account_info')
 def get_account_info():
     """获取账户基本信息（资金和持仓概览）"""
     try:
-        # 初始化默认返回内容
         balance_info = "未获取到账户余额信息"
         positions_info = "未获取到持仓信息"
-        
-        # 先获取资金信息
-        balance_cmd = ['python', 'check_futures_balance.py']
+
         try:
             balance_process = subprocess.run(
-                balance_cmd,
+                ['python', 'check_futures_balance.py'],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
                 cwd=BASE_DIR,
-                timeout=30  # 添加超时限制
+                timeout=30
             )
             balance_info = balance_process.stdout
             if balance_process.stderr:
@@ -273,17 +243,15 @@ def get_account_info():
             balance_info = "获取账户余额超时"
         except Exception as e:
             balance_info = f"获取账户余额时出错: {str(e)}"
-        
-        # 再获取持仓信息
-        positions_cmd = ['python', 'checkPositions.py']
+
         try:
             positions_process = subprocess.run(
-                positions_cmd,
+                ['python', 'checkPositions.py'],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
                 cwd=BASE_DIR,
-                timeout=30  # 添加超时限制
+                timeout=30
             )
             positions_info = positions_process.stdout
             if positions_process.stderr:
@@ -292,8 +260,7 @@ def get_account_info():
             positions_info = "获取持仓信息超时"
         except Exception as e:
             positions_info = f"获取持仓信息时出错: {str(e)}"
-        
-        # 无论如何都返回响应，避免前端fetch失败
+
         return jsonify({
             'status': 'success',
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -301,7 +268,7 @@ def get_account_info():
             'positions_info': positions_info
         })
     except Exception as e:
-        # 捕获所有可能的异常，确保返回500错误而不是让请求失败
+        # BUG FIX: 原代码有两个连续的 except Exception，第二个永远不会执行
         print(f"get_account_info路由异常: {str(e)}")
         return jsonify({
             'status': 'error',
@@ -310,699 +277,9 @@ def get_account_info():
             'balance_info': "",
             'positions_info': ""
         }), 500
-        
-    except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'获取账户信息失败: {str(e)}'
-        })
+
 
 if __name__ == '__main__':
-    # 创建static目录
-    static_dir = os.path.join(BASE_DIR, 'static')
-    if not os.path.exists(static_dir):
-        os.makedirs(static_dir)
-    
-    # 创建HTML文件
-    html_content = '''<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Binance 量化交易平台</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/antd@5.12.8/dist/reset.css">
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-            background-color: #f5f5f5;
-            margin: 0;
-            padding: 0;
-        }
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            text-align: center;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
-        .header h1 {
-            margin: 0;
-            font-size: 28px;
-            font-weight: 600;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        .dashboard {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        .card {
-            background: white;
-            border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
-        .card h3 {
-            margin-top: 0;
-            margin-bottom: 15px;
-            color: #333;
-            border-bottom: 2px solid #f0f0f0;
-            padding-bottom: 10px;
-        }
-        .card pre {
-            background: #f6f8fa;
-            border-radius: 6px;
-            padding: 15px;
-            overflow-x: auto;
-            margin: 0;
-            max-height: 200px;
-            font-size: 14px;
-        }
-        .tabs {
-            background: white;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            margin-bottom: 30px;
-        }
-        .tab-header {
-            display: flex;
-            background: #fafafa;
-            border-bottom: 1px solid #f0f0f0;
-            overflow-x: auto;
-        }
-        .tab-button {
-            padding: 12px 20px;
-            border: none;
-            background: none;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-            color: #666;
-            white-space: nowrap;
-            transition: all 0.3s;
-        }
-        .tab-button:hover {
-            color: #667eea;
-            background: #f0f0f0;
-        }
-        .tab-button.active {
-            color: #667eea;
-            background: white;
-            border-bottom: 2px solid #667eea;
-        }
-        .tab-content {
-            padding: 20px;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 500;
-            color: #333;
-        }
-        .form-group input,
-        .form-group select {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-            transition: border-color 0.3s;
-        }
-        .form-group input:focus,
-        .form-group select:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        .form-group input[type="number"] {
-            -moz-appearance: textfield;
-        }
-        .form-group input[type="number"]::-webkit-outer-spin-button,
-        .form-group input[type="number"]::-webkit-inner-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
-        }
-        .button {
-            background: #667eea;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-            transition: background 0.3s;
-        }
-        .button:hover {
-            background: #5a67d8;
-        }
-        .button:disabled {
-            background: #a0aec0;
-            cursor: not-allowed;
-        }
-        .result-container {
-            margin-top: 20px;
-            background: #f8f9fa;
-            border-radius: 6px;
-            padding: 15px;
-            max-height: 300px;
-            overflow-y: auto;
-        }
-        .status-success {
-            color: #48bb78;
-        }
-        .status-error {
-            color: #f56565;
-        }
-        .status-info {
-            color: #4299e1;
-        }
-        .execution-time {
-            font-size: 12px;
-            color: #666;
-            margin-top: 10px;
-        }
-        .loading {
-            text-align: center;
-            padding: 20px;
-            color: #667eea;
-        }
-        .chart-container {
-            height: 300px;
-            margin-top: 20px;
-        }
-        @media (max-width: 768px) {
-            .dashboard {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>Binance 量化交易平台</h1>
-    </div>
-    
-    <div class="container">
-        <!-- 账户概览 -->
-        <div class="dashboard">
-            <div class="card">
-                <h3>账户资金</h3>
-                <pre id="balance-info">加载中...</pre>
-            </div>
-            <div class="card">
-                <h3>当前持仓</h3>
-                <pre id="positions-info">加载中...</pre>
-            </div>
-        </div>
-        
-        <!-- 功能标签页 -->
-        <div class="tabs">
-            <div class="tab-header">
-                <button class="tab-button active" onclick="switchTab('trading')">交易操作</button>
-                <button class="tab-button" onclick="switchTab('indicators')">技术指标</button>
-                <button class="tab-button" onclick="switchTab('strategies')">交易策略</button>
-            </div>
-            
-            <!-- 交易操作标签页 -->
-            <div class="tab-content" id="trading-content">
-                <div class="tabs">
-                    <div class="tab-header">
-                        <button class="tab-button active" onclick="switchSubTab('market-long')">开多单</button>
-                        <button class="tab-button" onclick="switchSubTab('market-short')">开空单</button>
-                        <button class="tab-button" onclick="switchSubTab('close-long')">平多单</button>
-                        <button class="tab-button" onclick="switchSubTab('close-short')">平空单</button>
-                    </div>
-                    
-                    <!-- 开多单 -->
-                    <div class="tab-content" id="market-long-content">
-                        <div class="form-group">
-                            <label for="ml-symbol">交易对</label>
-                            <input type="text" id="ml-symbol" value="BTCUSDT">
-                        </div>
-                        <div class="form-group">
-                            <label for="ml-quantity">数量</label>
-                            <input type="number" id="ml-quantity" step="0.001" value="0.001" min="0">
-                        </div>
-                        <div class="form-group">
-                            <label for="ml-leverage">杠杆倍数</label>
-                            <input type="number" id="ml-leverage" value="10" min="1" max="125">
-                        </div>
-                        <button class="button" onclick="runScript('market_long')">执行开多</button>
-                    </div>
-                    
-                    <!-- 开空单 -->
-                    <div class="tab-content" id="market-short-content" style="display: none;">
-                        <div class="form-group">
-                            <label for="ms-symbol">交易对</label>
-                            <input type="text" id="ms-symbol" value="BTCUSDT">
-                        </div>
-                        <div class="form-group">
-                            <label for="ms-quantity">数量</label>
-                            <input type="number" id="ms-quantity" step="0.001" value="0.001" min="0">
-                        </div>
-                        <div class="form-group">
-                            <label for="ms-leverage">杠杆倍数</label>
-                            <input type="number" id="ms-leverage" value="10" min="1" max="125">
-                        </div>
-                        <button class="button" onclick="runScript('market_short')">执行开空</button>
-                    </div>
-                    
-                    <!-- 平多单 -->
-                    <div class="tab-content" id="close-long-content" style="display: none;">
-                        <div class="form-group">
-                            <label for="cl-symbol">交易对</label>
-                            <input type="text" id="cl-symbol" value="BTCUSDT">
-                        </div>
-                        <button class="button" onclick="runScript('close_long')">执行平多</button>
-                    </div>
-                    
-                    <!-- 平空单 -->
-                    <div class="tab-content" id="close-short-content" style="display: none;">
-                        <div class="form-group">
-                            <label for="cs-symbol">交易对</label>
-                            <input type="text" id="cs-symbol" value="BTCUSDT">
-                        </div>
-                        <button class="button" onclick="runScript('close_short')">执行平空</button>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- 技术指标标签页 -->
-            <div class="tab-content" id="indicators-content" style="display: none;">
-                <div class="tabs">
-                    <div class="tab-header">
-                        <button class="tab-button active" onclick="switchSubTab('get-rsi')">RSI指标</button>
-                        <button class="tab-button" onclick="switchSubTab('get-macd')">KDJ & MACD</button>
-                        <button class="tab-button" onclick="switchSubTab('get-moving-average')">移动平均线</button>
-                        <button class="tab-button" onclick="switchSubTab('get-bollinger-bands')">布林带</button>
-                    </div>
-                    
-                    <!-- RSI指标 -->
-                    <div class="tab-content" id="get-rsi-content">
-                        <div class="form-group">
-                            <label for="rsi-symbol">交易对</label>
-                            <input type="text" id="rsi-symbol" value="BTCUSDT">
-                        </div>
-                        <div class="form-group">
-                            <label for="rsi-interval">时间周期</label>
-                            <select id="rsi-interval">
-                                <option value="1h">1小时</option>
-                                <option value="4h">4小时</option>
-                                <option value="1d" selected>1天</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="rsi-period">RSI周期</label>
-                            <input type="number" id="rsi-period" value="14" min="1">
-                        </div>
-                        <button class="button" onclick="runScript('get_rsi')">获取RSI</button>
-                    </div>
-                    
-                    <!-- KDJ & MACD -->
-                    <div class="tab-content" id="get-macd-content" style="display: none;">
-                        <div class="form-group">
-                            <label for="macd-symbol">交易对</label>
-                            <input type="text" id="macd-symbol" value="BTCUSDT">
-                        </div>
-                        <div class="form-group">
-                            <label for="macd-interval">时间周期</label>
-                            <select id="macd-interval">
-                                <option value="1h">1小时</option>
-                                <option value="4h">4小时</option>
-                                <option value="1d" selected>1天</option>
-                            </select>
-                        </div>
-                        <button class="button" onclick="runScript('get_macd')">获取指标</button>
-                    </div>
-                    
-                    <!-- 移动平均线 -->
-                    <div class="tab-content" id="get-moving-average-content" style="display: none;">
-                        <div class="form-group">
-                            <label for="ma-symbol">交易对</label>
-                            <input type="text" id="ma-symbol" value="BTCUSDT">
-                        </div>
-                        <div class="form-group">
-                            <label for="ma-interval">时间周期</label>
-                            <select id="ma-interval">
-                                <option value="1h">1小时</option>
-                                <option value="4h">4小时</option>
-                                <option value="1d" selected>1天</option>
-                            </select>
-                        </div>
-                        <button class="button" onclick="runScript('get_moving_average')">获取均线</button>
-                    </div>
-                    
-                    <!-- 布林带 -->
-                    <div class="tab-content" id="get-bollinger-bands-content" style="display: none;">
-                        <div class="form-group">
-                            <label for="bb-symbol">交易对</label>
-                            <input type="text" id="bb-symbol" value="BTCUSDT">
-                        </div>
-                        <div class="form-group">
-                            <label for="bb-interval">时间周期</label>
-                            <select id="bb-interval">
-                                <option value="1h">1小时</option>
-                                <option value="4h">4小时</option>
-                                <option value="1d" selected>1天</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="bb-period">周期</label>
-                            <input type="number" id="bb-period" value="20" min="1">
-                        </div>
-                        <div class="form-group">
-                            <label for="bb-std-dev">标准差倍数</label>
-                            <input type="number" id="bb-std-dev" step="0.1" value="2" min="0.1">
-                        </div>
-                        <button class="button" onclick="runScript('get_bollinger_bands')">获取布林带</button>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- 交易策略标签页 -->
-            <div class="tab-content" id="strategies-content" style="display: none;">
-                <div class="tabs">
-                    <div class="tab-header">
-                <button class="tab-button active" onclick="switchSubTab('trend-strategy')">趋势波动策略</button>
-                <button class="tab-button" onclick="switchSubTab('volume-price-strategy')">量价共振策略</button>
-                <button class="tab-button" onclick="switchSubTab('grid-trading')">网格交易策略</button>
-                <button class="tab-button" onclick="switchSubTab('moving-average-144')">5分钟144日均线策略</button>
-            </div>
-                    
-                    <!-- 趋势波动策略 -->
-                    <div class="tab-content" id="trend-strategy-content">
-                        <div class="form-group">
-                            <label for="ts-symbol">交易对</label>
-                            <input type="text" id="ts-symbol" value="BTCUSDT">
-                        </div>
-                        <div class="form-group">
-                            <label for="ts-interval">时间周期</label>
-                            <select id="ts-interval">
-                                <option value="1h">1小时</option>
-                                <option value="4h">4小时</option>
-                                <option value="1d" selected>1天</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="ts-risk-percent">风险比例(%)</label>
-                            <input type="number" id="ts-risk-percent" step="0.1" value="2" min="0.1" max="10">
-                        </div>
-                        <button class="button" onclick="runScript('trend_strategy')">运行策略</button>
-                    </div>
-                    
-                    <!-- 量价共振策略 -->
-                    <div class="tab-content" id="volume-price-strategy-content" style="display: none;">
-                        <div class="form-group">
-                            <label for="vp-symbol">交易对</label>
-                            <input type="text" id="vp-symbol" value="ETHUSDT">
-                        </div>
-                        <div class="form-group">
-                            <label>
-                                <input type="checkbox" id="vp-testnet"> 使用测试网络
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <p style="color: #666; font-size: 14px; margin-top: 5px;">
-                                <strong>重要说明：</strong><br>
-                                1. 首次使用前请在volumePriceStrategy.py中配置API密钥<br>
-                                2. 策略默认使用1小时K线<br>
-                                3. 单笔交易风险为总资金的1.5%<br>
-                                4. 程序将持续运行并实时监控市场
-                            </p>
-                        </div>
-                        <button class="button" onclick="runScript('volume_price_strategy')">运行量价共振策略</button>
-                    </div>
-                    
-                    <!-- 网格交易策略 -->
-                    <div class="tab-content" id="grid-trading-content" style="display: none;">
-                        <div class="form-group">
-                            <label for="grid-symbol">交易对</label>
-                            <input type="text" id="grid-symbol" value="ETHUSDT">
-                        </div>
-                        <div class="form-group">
-                            <label for="grid-levels">网格档位数量</label>
-                            <input type="number" id="grid-levels" value="10" min="5" max="20">
-                        </div>
-                        <div class="form-group">
-                            <label for="grid-range">网格区间百分比(%)</label>
-                            <input type="number" id="grid-range" value="8" min="5" max="15">
-                        </div>
-                        <div class="form-group">
-                            <label>
-                                <input type="checkbox" id="grid-testnet"> 使用测试网络
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <p style="color: #666; font-size: 14px; margin-top: 5px;">
-                                <strong>重要说明：</strong><br>
-                                1. 首次使用前请在gridTradingStrategy.py中配置API密钥<br>
-                                2. 网格交易在横盘市场表现最佳<br>
-                                3. 请根据市场波动情况调整网格区间
-                            </p>
-                        </div>
-                        <button class="button" onclick="runScript('grid_trading')">运行网格交易策略</button>
-                    </div>
-                    <!-- 5分钟144日均线策略 -->
-                    <div class="tab-content" id="moving-average-144-content" style="display: none;">
-                        <div class="form-group">
-                            <label for="ma144-api-key">API密钥</label>
-                            <input type="password" id="ma144-api-key" placeholder="可选，默认使用环境变量">
-                        </div>
-                        <div class="form-group">
-                            <label for="ma144-api-secret">API密钥密码</label>
-                            <input type="password" id="ma144-api-secret" placeholder="可选，默认使用环境变量">
-                        </div>
-                        <div class="form-group">
-                            <label for="ma144-symbol">交易对</label>
-                            <input type="text" id="ma144-symbol" value="ETHUSDT">
-                        </div>
-                        <div class="form-group">
-                            <label>
-                                <input type="checkbox" id="ma144-testnet"> 使用测试网络
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <p style="color: #666; font-size: 14px; margin-top: 5px;">
-                                <strong>重要说明：</strong><br>
-                                1. 首次使用前请在movingAverage144Strategy.py中配置API密钥<br>
-                                2. 策略基于5分钟周期144日均线进行交易<br>
-                                3. 价格在均线上方做多，在均线下方做空
-                            </p>
-                        </div>
-                        <button class="button" onclick="runScript('moving_average_144')">运行144日均线策略</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- 执行结果 -->
-        <div class="card">
-            <h3>执行结果</h3>
-            <div id="result-output" class="result-container">
-                <div class="status-info">请选择功能并点击执行按钮</div>
-            </div>
-            <div id="execution-time" class="execution-time"></div>
-        </div>
-    </div>
-    
-    <script>
-        // 标签页切换
-        function switchTab(tabName) {
-            // 隐藏所有内容
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.style.display = 'none';
-            });
-            
-            // 重置所有按钮状态
-            document.querySelectorAll('.tab-button').forEach(button => {
-                button.classList.remove('active');
-            });
-            
-            // 显示选中的内容
-            document.getElementById(tabName + '-content').style.display = 'block';
-            
-            // 激活对应的按钮
-            event.target.classList.add('active');
-        }
-        
-        // 子标签页切换
-        function switchSubTab(tabName) {
-            // 隐藏所有同层级的内容
-            const parent = event.target.closest('.tabs');
-            parent.querySelectorAll('.tab-content').forEach(content => {
-                content.style.display = 'none';
-            });
-            
-            // 重置所有同层级的按钮状态
-            parent.querySelectorAll('.tab-button').forEach(button => {
-                button.classList.remove('active');
-            });
-            
-            // 显示选中的内容
-            document.getElementById(tabName + '-content').style.display = 'block';
-            
-            // 激活对应的按钮
-            event.target.classList.add('active');
-        }
-        
-        // 运行脚本
-        async function runScript(scriptName) {
-            // 获取参数
-            const params = getScriptParams(scriptName);
-            
-            // 显示加载状态
-            const resultOutput = document.getElementById('result-output');
-            const executionTime = document.getElementById('execution-time');
-            resultOutput.innerHTML = '<div class="loading">执行中，请稍候...</div>';
-            executionTime.textContent = '';
-            
-            try {
-                // 发送请求
-                const response = await fetch('/run_script', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        script: scriptName,
-                        params: params
-                    })
-                });
-                
-                const data = await response.json();
-                
-                // 显示结果
-                if (data.status === 'success') {
-                    resultOutput.innerHTML = `<pre class="status-success">${data.output}</pre>`;
-                } else {
-                    resultOutput.innerHTML = `<pre class="status-error">${data.output || data.message}\n\n错误详情:\n${data.error || ''}</pre>`;
-                }
-                
-                // 显示执行时间
-                executionTime.textContent = `执行时间: ${data.execution_time || '未知'}`;
-                
-                // 刷新账户信息
-                refreshAccountInfo();
-                
-            } catch (error) {
-                resultOutput.innerHTML = `<pre class="status-error">请求失败: ${error.message}</pre>`;
-            }
-        }
-        
-        // 获取脚本参数
-        function getScriptParams(scriptName) {
-            const params = {};
-            
-            switch (scriptName) {
-                case 'market_long':
-                    params.symbol = document.getElementById('ml-symbol').value;
-                    params.quantity = parseFloat(document.getElementById('ml-quantity').value);
-                    params.leverage = parseInt(document.getElementById('ml-leverage').value);
-                    break;
-                case 'market_short':
-                    params.symbol = document.getElementById('ms-symbol').value;
-                    params.quantity = parseFloat(document.getElementById('ms-quantity').value);
-                    params.leverage = parseInt(document.getElementById('ms-leverage').value);
-                    break;
-                case 'close_long':
-                    params.symbol = document.getElementById('cl-symbol').value;
-                    break;
-                case 'close_short':
-                    params.symbol = document.getElementById('cs-symbol').value;
-                    break;
-                case 'get_rsi':
-                    params.symbol = document.getElementById('rsi-symbol').value;
-                    params.interval = document.getElementById('rsi-interval').value;
-                    params.period = parseInt(document.getElementById('rsi-period').value);
-                    break;
-                case 'get_macd':
-                    params.symbol = document.getElementById('macd-symbol').value;
-                    params.interval = document.getElementById('macd-interval').value;
-                    break;
-                case 'get_moving_average':
-                    params.symbol = document.getElementById('ma-symbol').value;
-                    params.interval = document.getElementById('ma-interval').value;
-                    break;
-                case 'get_bollinger_bands':
-                    params.symbol = document.getElementById('bb-symbol').value;
-                    params.interval = document.getElementById('bb-interval').value;
-                    params.period = parseInt(document.getElementById('bb-period').value);
-                    params.std_dev = parseFloat(document.getElementById('bb-std-dev').value);
-                    break;
-                case 'trend_strategy':
-                    params.symbol = document.getElementById('ts-symbol').value;
-                    params.interval = document.getElementById('ts-interval').value;
-                    params.risk_percent = parseFloat(document.getElementById('ts-risk-percent').value);
-                    break;
-                case 'volume_price_strategy':
-                    params.symbol = document.getElementById('vp-symbol').value;
-                    params.testnet = document.getElementById('vp-testnet').checked;
-                    break;
-                case 'grid_trading':
-                    params.symbol = document.getElementById('grid-symbol').value;
-                    params.levels = parseInt(document.getElementById('grid-levels').value);
-                    params.range = parseFloat(document.getElementById('grid-range').value);
-                    params.testnet = document.getElementById('grid-testnet').checked;
-                    break;
-                case 'moving_average_144':
-                    // 获取API密钥（可选）
-                    const apiKey = document.getElementById('ma144-api-key').value;
-                    const apiSecret = document.getElementById('ma144-api-secret').value;
-                    if (apiKey) params.api_key = apiKey;
-                    if (apiSecret) params.api_secret = apiSecret;
-                    
-                    params.symbol = document.getElementById('ma144-symbol').value;
-                    params.testnet = document.getElementById('ma144-testnet').checked;
-                    break;
-            }
-            
-            return params;
-        }
-        
-        // 刷新账户信息
-        async function refreshAccountInfo() {
-            try {
-                const response = await fetch('/get_account_info');
-                const data = await response.json();
-                
-                if (data.status === 'success') {
-                    document.getElementById('balance-info').textContent = data.balance_info;
-                    document.getElementById('positions-info').textContent = data.positions_info;
-                }
-            } catch (error) {
-                console.error('刷新账户信息失败:', error);
-            }
-        }
-        
-        // 页面加载时刷新账户信息
-        window.onload = function() {
-            refreshAccountInfo();
-            
-            // 每30秒自动刷新一次账户信息
-            setInterval(refreshAccountInfo, 30000);
-        };
-    </script>
-</body>
-</html>'''
-        
-    # 写入HTML文件
-    html_file_path = os.path.join(static_dir, 'index.html')
-    with open(html_file_path, 'w', encoding='utf-8') as f:
-        f.write(html_content)
-    
-    print(f"Web界面已创建: {html_file_path}")
-    print("启动Flask服务器...")
-    print("访问 http://localhost:5000 查看量化交易平台")
-    
-    # 启动Flask应用
+    print("Starting Flask server...")
+    print("Visit http://localhost:5000")
     app.run(host='0.0.0.0', port=5000, debug=True)

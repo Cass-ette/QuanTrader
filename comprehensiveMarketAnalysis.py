@@ -3,9 +3,11 @@ import pandas as pd
 import ta
 import numpy as np
 from datetime import datetime
+from config import BINANCE_FUTURES_BASE_URL, DEFAULT_TIMEOUT, DEFAULT_SYMBOL
+
 
 class ComprehensiveMarketAnalyzer:
-    def __init__(self, symbol='ETHUSDT', interval='5m', limit=1000):
+    def __init__(self, symbol='BTCUSDT', interval='5m', limit=1000):
         self.symbol = symbol
         self.interval = interval
         self.limit = limit
@@ -16,8 +18,10 @@ class ComprehensiveMarketAnalyzer:
     def fetch_data(self):
         """从币安期货API获取K线数据"""
         print(f"正在获取 {self.symbol} {self.interval} 数据...")
-        url = f'https://fapi.binance.com/fapi/v1/klines?symbol={self.symbol}&interval={self.interval}&limit={self.limit}'
-        response = requests.get(url).json()
+        url = f'{BINANCE_FUTURES_BASE_URL}/fapi/v1/klines?symbol={self.symbol}&interval={self.interval}&limit={self.limit}'
+        response = requests.get(url, timeout=DEFAULT_TIMEOUT)
+        response.raise_for_status()
+        response = response.json()
         
         # 转换为DataFrame
         self.df = pd.DataFrame(response)
@@ -611,7 +615,7 @@ class ComprehensiveMarketAnalyzer:
 if __name__ == "__main__":
     # 创建分析器实例
     analyzer = ComprehensiveMarketAnalyzer(
-        symbol='ETHUSDT',  # 可更改为其他交易对
+        symbol=DEFAULT_SYMBOL,
         interval='5m',     # 可更改为其他时间周期
         limit=1000         # 数据量
     )

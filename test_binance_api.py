@@ -223,17 +223,10 @@ class BinanceAPI:
 
 def main():
     """主函数"""
-    # 从环境变量读取API密钥
-    api_key = os.environ.get('BINANCE_API_KEY', '')
-    secret_key = os.environ.get('BINANCE_SECRET_KEY', '')
-    
-    # 如果环境变量未设置，使用默认值（用于向后兼容）
-    if not api_key:
-        api_key = 'D3gzp96Lv20e1KCx2WZRPT5xOsavT9jTtATfeVRe6kotuajCdoQjb0lohRoHcBa6'
-        print("警告: 未从环境变量 BINANCE_API_KEY 获取API密钥，使用默认值")
-    if not secret_key:
-        secret_key = 'dV1tDLMczFlopnF9ZFXKBJ0oJt9JogJlxnMmeo7TGUhxRwgm5jxdReoUfMJF55XQ'
-        print("警告: 未从环境变量 BINANCE_SECRET_KEY 获取密钥，使用默认值")
+    from config import BINANCE_API_KEY, BINANCE_SECRET_KEY, validate_binance_config
+    validate_binance_config()
+    api_key = BINANCE_API_KEY
+    secret_key = BINANCE_SECRET_KEY
     
     # 创建API客户端
     client = BinanceAPI(api_key, secret_key)
