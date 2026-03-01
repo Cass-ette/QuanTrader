@@ -398,7 +398,7 @@
                     <div class="tab-content" id="volume-price-strategy-content" style="display: none;">
                         <div class="form-group">
                             <label for="vp-symbol">交易对</label>
-                            <input type="text" id="vp-symbol" value="ETHUSDT">
+                            <input type="text" id="vp-symbol" value="BTCUSDT">
                         </div>
                         <div class="form-group">
                             <label>
@@ -408,7 +408,7 @@
                         <div class="form-group">
                             <p style="color: #666; font-size: 14px; margin-top: 5px;">
                                 <strong>重要说明：</strong><br>
-                                1. 首次使用前请在volumePriceStrategy.py中配置API密钥<br>
+                                1. 请确保已在 .env 文件中配置 BINANCE_API_KEY 和 BINANCE_SECRET_KEY<br>
                                 2. 策略默认使用1小时K线<br>
                                 3. 单笔交易风险为总资金的1.5%<br>
                                 4. 程序将持续运行并实时监控市场
@@ -421,7 +421,7 @@
                     <div class="tab-content" id="grid-trading-content" style="display: none;">
                         <div class="form-group">
                             <label for="grid-symbol">交易对</label>
-                            <input type="text" id="grid-symbol" value="ETHUSDT">
+                            <input type="text" id="grid-symbol" value="BTCUSDT">
                         </div>
                         <div class="form-group">
                             <label for="grid-levels">网格档位数量</label>
@@ -439,7 +439,7 @@
                         <div class="form-group">
                             <p style="color: #666; font-size: 14px; margin-top: 5px;">
                                 <strong>重要说明：</strong><br>
-                                1. 首次使用前请在gridTradingStrategy.py中配置API密钥<br>
+                                1. 请确保已在 .env 文件中配置 BINANCE_API_KEY 和 BINANCE_SECRET_KEY<br>
                                 2. 网格交易在横盘市场表现最佳<br>
                                 3. 请根据市场波动情况调整网格区间
                             </p>
@@ -458,7 +458,7 @@
                         </div>
                         <div class="form-group">
                             <label for="ma144-symbol">交易对</label>
-                            <input type="text" id="ma144-symbol" value="ETHUSDT">
+                            <input type="text" id="ma144-symbol" value="BTCUSDT">
                         </div>
                         <div class="form-group">
                             <label>
@@ -468,7 +468,7 @@
                         <div class="form-group">
                             <p style="color: #666; font-size: 14px; margin-top: 5px;">
                                 <strong>重要说明：</strong><br>
-                                1. 首次使用前请在movingAverage144Strategy.py中配置API密钥<br>
+                                1. 请确保已在 .env 文件中配置 BINANCE_API_KEY 和 BINANCE_SECRET_KEY<br>
                                 2. 策略基于5分钟周期144日均线进行交易<br>
                                 3. 价格在均线上方做多，在均线下方做空
                             </p>
@@ -490,6 +490,15 @@
     </div>
     
     <script>
+        // 全局默认交易对 —— 修改此处即可统一所有表单默认值
+        const DEFAULT_SYMBOL = 'BTCUSDT';
+
+        // 页面加载时将所有交易对输入框设为默认值
+        document.addEventListener('DOMContentLoaded', function() {
+            const symbolInputs = document.querySelectorAll('input[id$="-symbol"]');
+            symbolInputs.forEach(input => { input.value = DEFAULT_SYMBOL; });
+        });
+
         // 标签页切换
         function switchTab(tabName) {
             // 隐藏所有内容
