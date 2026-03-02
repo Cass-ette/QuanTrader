@@ -22,26 +22,12 @@ ALLOWED_SCRIPTS = {
     'trend_strategy': 'trendVolatilityStrategy.py',
     'volume_price_strategy': 'volumePriceStrategy.py',
     'grid_trading': 'gridTradingStrategy.py',
-    'moving_average_144': {'file': 'movingAverage144Strategy.py', 'api_params': True}
+    'moving_average_144': 'movingAverage144Strategy.py'
 }
 
-SCRIPT_DESCRIPTIONS = {
-    'check_positions': '查询当前持仓信息',
-    'check_balance': '查询账户资金信息',
-    'market_long': '开多单',
-    'market_short': '开空单',
-    'close_long': '平多单',
-    'close_short': '平空单',
-    'get_rsi': '获取RSI指标',
-    'get_macd': '获取KDJ和MACD指标',
-    'get_moving_average': '获取移动平均线',
-    'get_bollinger_bands': '获取布林带指标',
-    'trend_strategy': '运行趋势波动策略',
-    'volume_price_strategy': '运行量价共振策略',
-    'grid_trading': '运行网格交易策略',
-    'moving_average_144': '运行5分钟周期144日均线策略'
-}
+API_PARAM_SCRIPTS = {'moving_average_144'}
 
+# 参数顺序必须与脚本 sys.argv 的读取顺序一致
 SCRIPT_PARAMS = {
     'market_long': [
         {'name': 'symbol', 'type': 'text', 'label': '交易对', 'default': 'BTCUSDT'},
@@ -89,9 +75,12 @@ SCRIPT_PARAMS = {
     ],
     'grid_trading': [
         {'name': 'symbol', 'type': 'text', 'label': '交易对', 'default': 'BTCUSDT'},
+        {'name': 'testnet', 'type': 'checkbox', 'label': '使用测试网络', 'default': False},
         {'name': 'levels', 'type': 'number', 'label': '网格档位数量', 'default': 10},
-        {'name': 'range', 'type': 'number', 'label': '网格区间百分比(%)', 'default': 8},
-        {'name': 'testnet', 'type': 'checkbox', 'label': '使用测试网络', 'default': False}
+        {'name': 'range', 'type': 'number', 'label': '网格区间百分比(%)', 'default': 8}
+    ],
+    'moving_average_144': [
+        {'name': 'symbol', 'type': 'text', 'label': '交易对', 'default': 'BTCUSDT'}
     ]
 }
 
@@ -114,11 +103,7 @@ def run_script():
     if script_key not in ALLOWED_SCRIPTS:
         return jsonify({'status': 'error', 'message': f'不支持的脚本: {script_key}'})
 
-    script_config = ALLOWED_SCRIPTS[script_key]
-    if isinstance(script_config, dict):
-        script_path = os.path.join(BASE_DIR, script_config['file'])
-    else:
-        script_path = os.path.join(BASE_DIR, script_config)
+    script_path = os.path.join(BASE_DIR, ALLOWED_SCRIPTS[script_key])
 
     if not os.path.exists(script_path):
         return jsonify({'status': 'error', 'message': f'脚本文件不存在: {script_path}'})
@@ -126,50 +111,16 @@ def run_script():
     try:
         cmd = ['python', script_path]
 
-        if script_key in ['market_long', 'market_short']:
-            if 'symbol' in params:
-                cmd.append(params['symbol'])
-            if 'quantity' in params:
-                cmd.append(str(params['quantity']))
-            if 'leverage' in params:
-                cmd.append(str(params['leverage']))
-        elif script_key in ['close_long', 'close_short']:
-            if 'symbol' in params:
-                cmd.append(params['symbol'])
-        elif script_key in ['get_rsi', 'get_macd', 'get_moving_average', 'get_bollinger_bands']:
-            if 'symbol' in params:
-                cmd.append(params['symbol'])
-            if 'interval' in params:
-                cmd.append(params['interval'])
-            if script_key == 'get_rsi' and 'period' in params:
-                cmd.append(str(params['period']))
-            if script_key == 'get_bollinger_bands':
-                if 'period' in params:
-                    cmd.append(str(params['period']))
-                if 'std_dev' in params:
-                    cmd.append(str(params['std_dev']))
-        elif script_key == 'trend_strategy':
-            if 'symbol' in params:
-                cmd.append(params['symbol'])
-            if 'interval' in params:
-                cmd.append(params['interval'])
-            if 'risk_percent' in params:
-                cmd.append(str(params['risk_percent']))
-        elif script_key == 'grid_trading':
-            if 'symbol' in params:
-                cmd.append(params['symbol'])
-            if 'levels' in params:
-                cmd.append(str(params['levels']))
-            if 'range' in params:
-                cmd.append(str(params['range']))
-        elif script_key == 'moving_average_144':
-            if 'symbol' in params:
-                cmd.append(params['symbol'])
+        if script_key in SCRIPT_PARAMS:
+            for param_def in SCRIPT_PARAMS[script_key]:
+                name = param_def['name']
+                if name in params:
+                    cmd.append(str(params[name]))
 
         start_time = time.time()
 
         env = os.environ.copy()
-        if isinstance(ALLOWED_SCRIPTS.get(script_key), dict) and ALLOWED_SCRIPTS[script_key].get('api_params'):
+        if script_key in API_PARAM_SCRIPTS:
             if 'api_key' in params:
                 env['API_KEY'] = params['api_key']
             if 'api_secret' in params:
@@ -187,7 +138,6 @@ def run_script():
         output = []
         for line in iter(process.stdout.readline, ''):
             output.append(line.strip())
-            time.sleep(0.1)
 
         process.wait()
         end_time = time.time()
@@ -281,5 +231,6 @@ def get_account_info():
 
 if __name__ == '__main__':
     print("Starting Flask server...")
-    print("Visit http://localhost:5000")
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    port = int(os.environ.get('PORT', 8888))
+    print(f"Visit http://localhost:{port}")
+    app.run(host='0.0.0.0', port=port, debug=True)

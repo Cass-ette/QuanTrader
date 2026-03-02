@@ -5,7 +5,7 @@ import sys
 from config import BINANCE_FUTURES_BASE_URL, DEFAULT_TIMEOUT, DEFAULT_SYMBOL
 
 
-def calculate_rsi(symbol='BTCUSDT', interval='5m', limit=1000):
+def calculate_rsi(symbol='BTCUSDT', interval='5m', period=14, limit=1000):
     """计算RSI指标"""
     url = f'{BINANCE_FUTURES_BASE_URL}/fapi/v1/klines?symbol={symbol}&interval={interval}&limit={limit}'
     r = requests.get(url=url, timeout=DEFAULT_TIMEOUT)
@@ -21,7 +21,7 @@ def calculate_rsi(symbol='BTCUSDT', interval='5m', limit=1000):
     for col in ['open', 'high', 'low', 'close']:
         df[col] = df[col].astype(float)
 
-    df['rsi_14'] = ta.momentum.rsi(df['close'])
+    df['rsi_14'] = ta.momentum.rsi(df['close'], window=period)
     df['rsi_7'] = ta.momentum.rsi(df['close'], window=7)
     df['rsi_21'] = ta.momentum.rsi(df['close'], window=21)
     df['rsi_14_signal'] = df['rsi_14'].rolling(window=9).mean()
@@ -89,15 +89,21 @@ def analyze_rsi(df):
 if __name__ == "__main__":
     symbol = DEFAULT_SYMBOL
     interval = '5m'
+    period = 14
 
     if len(sys.argv) > 1:
         symbol = sys.argv[1]
     if len(sys.argv) > 2:
         interval = sys.argv[2]
+    if len(sys.argv) > 3:
+        try:
+            period = int(sys.argv[3])
+        except ValueError:
+            print(f"警告: RSI周期参数无效，使用默认值 {period}")
 
     try:
-        print(f"计算{symbol} {interval}周期的RSI指标...")
-        rsi_df = calculate_rsi(symbol, interval)
+        print(f"计算{symbol} {interval}周期的RSI指标(周期={period})...")
+        rsi_df = calculate_rsi(symbol, interval, period=period)
         analyze_rsi(rsi_df)
         print(f"\n脚本已完成{symbol} {interval}周期的RSI指标计算和分析。")
     except Exception as e:

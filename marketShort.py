@@ -59,8 +59,15 @@ if __name__ == "__main__":
         try:
             leverage = int(sys.argv[3])
             print(f"设置杠杆倍数: {leverage}x")
+            r = signed_request('POST', '/fapi/v1/leverage', {
+                'symbol': symbol,
+                'leverage': leverage
+            })
+            print(f"杠杆设置成功: {symbol} {leverage}x")
         except ValueError:
             print("警告: 杠杆参数无效，使用账户默认杠杆")
+        except Exception as e:
+            print(f"杠杆设置失败: {str(e)}，将使用账户当前杠杆")
 
     try:
         print(f"执行开空操作: {symbol}, 数量: {quantity}, 仓位模式: {position_side}")
