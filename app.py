@@ -114,8 +114,7 @@ def run_script():
         if script_key in SCRIPT_PARAMS:
             for param_def in SCRIPT_PARAMS[script_key]:
                 name = param_def['name']
-                if name in params:
-                    cmd.append(str(params[name]))
+                cmd.append(str(params.get(name, param_def.get('default', ''))))
 
         start_time = time.time()
 
