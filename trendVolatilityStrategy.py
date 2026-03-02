@@ -523,11 +523,17 @@ class TrendVolatilityStrategy:
 def main():
     symbol = DEFAULT_SYMBOL
     timeframe = '1h'
+    risk_per_trade = 0.02
 
     if len(sys.argv) > 1:
         symbol = sys.argv[1]
     if len(sys.argv) > 2:
         timeframe = sys.argv[2]
+    if len(sys.argv) > 3:
+        try:
+            risk_per_trade = float(sys.argv[3]) / 100
+        except ValueError:
+            print(f"警告: 风险比例参数无效，使用默认值 {risk_per_trade * 100}%")
 
     strategy = TrendVolatilityStrategy(
         symbol=symbol,
@@ -535,7 +541,7 @@ def main():
         ema_short=12,
         ema_long=26,
         atr_period=14,
-        risk_per_trade=0.02,
+        risk_per_trade=risk_per_trade,
         stop_loss_pct=0.05
     )
 
